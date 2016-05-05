@@ -6,16 +6,16 @@ import (
 	"github.com/ziutek/mymysql/mysql"
 	_ "github.com/ziutek/mymysql/native"
 	"os"
-	"time"
 	"strings"
+	"time"
 )
 
 type cmdOpts struct {
-	Host string `short:"H" long:"host" default:"localhost" description:"Hostname"`
-	Port string `short:"p" long:"port" default:"3306" description:"Port"`
-	User string `short:"u" long:"user" default:"root" description:"Username"`
-	Pass string `short:"P" long:"password" default:"" description:"Password"`
-    Channel string `short:"c" long:"channel" default:"" description:"Channel name for Multi source replication"`
+	Host    string `short:"H" long:"host" default:"localhost" description:"Hostname"`
+	Port    string `short:"p" long:"port" default:"3306" description:"Port"`
+	User    string `short:"u" long:"user" default:"root" description:"Username"`
+	Pass    string `short:"P" long:"password" default:"" description:"Password"`
+	Channel string `short:"c" long:"channel" default:"" description:"Channel name for Multi source replication"`
 }
 
 func fetchSlaveStatus(db mysql.Conn, status map[string]string, channel string) error {
@@ -37,7 +37,7 @@ func fetchSlaveStatus(db mysql.Conn, status map[string]string, channel string) e
 	return nil
 }
 
-func waitMasterPosition(db mysql.Conn, master_log_file string, read_master_log_pos string, timeout int32, channel string) (int, error)  {
+func waitMasterPosition(db mysql.Conn, master_log_file string, read_master_log_pos string, timeout int32, channel string) (int, error) {
 	// SELECT MASTER_POS_WAIT('$file', $pos, $timeout, 'main-db')
 	query := fmt.Sprintf("SELECT MASTER_POS_WAIT('%s', %s, %d)", master_log_file, read_master_log_pos, timeout)
 	if channel != "" {
@@ -48,7 +48,7 @@ func waitMasterPosition(db mysql.Conn, master_log_file string, read_master_log_p
 		return -1, err
 	}
 	if len(rows) < 1 || rows[0][0] == nil {
-		return -1, fmt.Errorf("No result retrieved for master_pos_wait");
+		return -1, fmt.Errorf("No result retrieved for master_pos_wait")
 	}
 	result := rows[0].Int(0)
 	return result, nil
@@ -76,7 +76,7 @@ func _main() (st int) {
 	defer db.Close()
 
 	fmt.Fprintf(os.Stdout, "Wait slave catchup master..\n")
-	for ;; {
+	for {
 		status := make(map[string]string)
 		err = fetchSlaveStatus(db, status, opts.Channel)
 		if err != nil {
@@ -87,11 +87,11 @@ func _main() (st int) {
 			time.Sleep(time.Duration(1) * time.Second)
 			continue
 		}
-		break;
+		break
 	}
 
-	fmt.Fprintf(os.Stdout, "Stop slave io_thread and Check master_post_wait\n");
-	for ;; {
+	fmt.Fprintf(os.Stdout, "Stop slave io_thread and Check master_post_wait\n")
+	for {
 		stop_query := fmt.Sprintf("STOP SLAVE IO_THREAD")
 		start_query := fmt.Sprintf("START SLAVE IO_THREAD")
 		if opts.Channel != "" {
@@ -100,7 +100,7 @@ func _main() (st int) {
 		}
 		_, _, err := db.Query(stop_query)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Could not stop slave io_thread: %s", err);
+			fmt.Fprintf(os.Stderr, "Could not stop slave io_thread: %s", err)
 			return
 		}
 
@@ -112,8 +112,8 @@ func _main() (st int) {
 			return
 		}
 
-		fmt.Fprintf(os.Stdout, "master_pos_wait..\n");
-		master_pos_wait, err := waitMasterPosition(db, status["master_log_file"], status["read_master_log_pos"], 10, opts.Channel);
+		fmt.Fprintf(os.Stdout, "master_pos_wait..\n")
+		master_pos_wait, err := waitMasterPosition(db, status["master_log_file"], status["read_master_log_pos"], 10, opts.Channel)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed exec master_pos_wait... restart slave io_thread: %s\n", err)
 			_, _, _ = db.Query(start_query)
@@ -128,18 +128,17 @@ func _main() (st int) {
 		}
 
 	}
-	fmt.Fprintf(os.Stdout, "io_thread stopped safety. Do stop slave\n");
+	fmt.Fprintf(os.Stdout, "io_thread stopped safety. Do stop slave\n")
 	query := fmt.Sprintf("STOP SLAVE")
 	if opts.Channel != "" {
 		query = fmt.Sprintf("STOP SLAVE FOR CHANNEL '%s'", db.Escape(opts.Channel))
 	}
 	_, _, err = db.Query(query)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Could not stop slave: %s", err);
+		fmt.Fprintf(os.Stderr, "Could not stop slave: %s", err)
 		return
 	}
-	fmt.Fprintf(os.Stdout, "Slave just stopped safety\n");
+	fmt.Fprintf(os.Stdout, "Slave just stopped safety\n")
 	st = 0
 	return
 }
-
