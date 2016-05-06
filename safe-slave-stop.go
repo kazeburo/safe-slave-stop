@@ -121,12 +121,12 @@ func _main() (st int) {
 		}
 
 		if master_pos_wait == -1 {
-			fmt.Fprintf(os.Stderr, "master_pos_wait returns -1... restart slave io_thread: %s\n", err)
+			fmt.Fprintf(os.Stderr, "master_pos_wait returns -1... restart slave io_thread\n")
 			_, _, _ = db.Query(start_query)
 			time.Sleep(time.Duration(3) * time.Second)
 			continue
 		}
-
+		break
 	}
 	fmt.Fprintf(os.Stdout, "io_thread stopped safety. Do stop slave\n")
 	query := fmt.Sprintf("STOP SLAVE")
