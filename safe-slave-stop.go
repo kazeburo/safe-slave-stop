@@ -16,6 +16,7 @@ type cmdOpts struct {
 	User    string `short:"u" long:"user" default:"root" description:"Username"`
 	Pass    string `short:"P" long:"password" default:"" description:"Password"`
 	Channel string `short:"c" long:"channel" default:"" description:"Channel name for Multi source replication"`
+	Timeout uint   `short:"t" long:"timeout" default:"180" description:"Timeout second"`
 }
 
 func fetchSlaveStatus(db mysql.Conn, status map[string]string, channel string) error {
@@ -67,6 +68,9 @@ func _main() (st int) {
 		os.Exit(1)
 	}
 
+	timeout := time.Now()
+	timeout = timeout.Add(time.Duration(opts.Timeout) * time.Second)
+
 	db := mysql.New("tcp", "", fmt.Sprintf("%s:%s", opts.Host, opts.Port), opts.User, opts.Pass, "")
 	err = db.Connect()
 	if err != nil {
@@ -77,6 +81,10 @@ func _main() (st int) {
 
 	fmt.Fprintf(os.Stdout, "Wait slave catchup master..\n")
 	for {
+		if timeout.Before(time.Now()) {
+			fmt.Fprintf(os.Stderr, "Timeout: %d second\n", opts.Timeout)
+			return
+		}
 		status := make(map[string]string)
 		err = fetchSlaveStatus(db, status, opts.Channel)
 		if err != nil {
@@ -92,6 +100,10 @@ func _main() (st int) {
 
 	fmt.Fprintf(os.Stdout, "Stop slave io_thread and Check master_post_wait\n")
 	for {
+		if timeout.Before(time.Now()) {
+			fmt.Fprintf(os.Stderr, "Timeout: %d second\n", opts.Timeout)
+			return
+		}
 		stop_query := fmt.Sprintf("STOP SLAVE IO_THREAD")
 		start_query := fmt.Sprintf("START SLAVE IO_THREAD")
 		if opts.Channel != "" {
@@ -113,7 +125,7 @@ func _main() (st int) {
 		}
 
 		fmt.Fprintf(os.Stdout, "master_pos_wait..\n")
-		master_pos_wait, err := waitMasterPosition(db, status["master_log_file"], status["read_master_log_pos"], 10, opts.Channel)
+		master_pos_wait, err := waitMasterPosition(db, status["master_log_file"], status["read_master_log_pos"], 5, opts.Channel)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed exec master_pos_wait... restart slave io_thread: %s\n", err)
 			_, _, _ = db.Query(start_query)
