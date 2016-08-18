@@ -8,10 +8,11 @@ import (
 	"os"
 	"strings"
 	"time"
+	"regexp"
 )
 
 type cmdOpts struct {
-	Host    string `short:"H" long:"host" default:"localhost" description:"Hostname"`
+	Host    string `short:"H" long:"host" default:"localhost" description:"Hostname or path to unix socket"`
 	Port    string `short:"p" long:"port" default:"3306" description:"Port"`
 	User    string `short:"u" long:"user" default:"root" description:"Username"`
 	Pass    string `short:"P" long:"password" default:"" description:"Password"`
@@ -71,7 +72,13 @@ func _main() (st int) {
 	timeout := time.Now()
 	timeout = timeout.Add(time.Duration(opts.Timeout) * time.Second)
 
-	db := mysql.New("tcp", "", fmt.Sprintf("%s:%s", opts.Host, opts.Port), opts.User, opts.Pass, "")
+	proto := "tcp"
+	host := fmt.Sprintf("%s:%s", opts.Host, opts.Port)
+	if regexp.MustCompile("/").Match([]byte(opts.Host)) {
+		proto = "unix"
+		host = opts.Host
+	}
+	db := mysql.New(proto, "", host, opts.User, opts.Pass, "")
 	err = db.Connect()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "couldn't connect DB: %s\n", err)
